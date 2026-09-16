@@ -14,13 +14,42 @@ The initial focus is deterministic commands. LLM fallback is a later Athena feat
 
 ## Current Progress
 
-This repository is in its initial setup stage. No desktop actions or communication protocol have been implemented yet.
+The desktop process includes an HTTP command-server scaffold and JSON request/response models. Desktop actions are not implemented yet.
 
-Planned capabilities include launching applications and arranging windows. The communication protocol, supported command set, and .NET version are still to be decided.
+Planned capabilities include launching applications and arranging windows. The initial HTTP contract below still needs to be aligned with the Pi command router.
 
 ## Development
 
-The client targets Windows and C#. Build, run, and test instructions will be added when the first implementation is available.
+The client targets .NET 10. Build and run with:
+
+```powershell
+dotnet build src/Athena.Desktop.csproj
+dotnet run --project src/Athena.Desktop.csproj
+```
+
+The server listens on `http://localhost:5000/` by default and accepts `POST /commands`:
+
+```json
+{
+  "requestId": "example-1",
+  "command": "launch_app",
+  "parameters": { "name": "notepad" }
+}
+```
+
+Until a handler is supplied to `CommandServer`, valid commands return HTTP 501:
+
+```json
+{
+  "requestId": "example-1",
+  "success": false,
+  "message": "Command execution is not implemented yet."
+}
+```
+
+Malformed JSON or a missing command returns HTTP 400. Supply a handler through the `CommandServer` constructor to implement actions; handlers should echo the request ID in their response. Requests are processed sequentially.
+
+For Pi access, set `ATHENA_HTTP_PREFIX` to a desktop LAN address with a trailing slash, such as `http://192.168.1.100:5000/`. Windows may require an HTTP URL reservation and an inbound firewall rule for that address and port. The scaffold has no authentication; use it only on a trusted development network. Ctrl-C stops the listener.
 
 ## Related Repository
 

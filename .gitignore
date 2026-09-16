@@ -1,2 +1,18 @@
-bin/
-obj/
+# .NET build and publish output
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# Test and coverage output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Local Visual Studio and Rider state
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates

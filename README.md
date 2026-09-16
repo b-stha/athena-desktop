@@ -1,6 +1,6 @@
 # Athena Desktop
 
-Athena Desktop is the Windows desktop client for Athena, written in C#. It is part of a solo semester and personal project to build a Raspberry Pi-hosted assistant for smart-home and PC control.
+Athena Desktop is the Windows desktop client for Athena, written in C#.
 
 ## Architecture
 
@@ -21,8 +21,6 @@ Planned capabilities include launching applications and arranging windows. The c
 ## Development
 
 The client targets Windows and C#. Build, run, and test instructions will be added when the first implementation is available.
-
-Development proceeds in small, testable steps with incremental commits.
 
 ## Related Repository
 

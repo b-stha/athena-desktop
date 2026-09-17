@@ -1,4 +1,5 @@
 using Athena.Desktop.Server;
+using Athena.Desktop.Server.Endpoints;
 
 using var shutdown = new CancellationTokenSource();
 
@@ -16,6 +17,7 @@ if (string.IsNullOrWhiteSpace(prefix))
     var host = string.IsNullOrWhiteSpace(bindHost) ? "localhost" : bindHost.Trim();
     prefix = new UriBuilder("http", host, 5000).Uri.AbsoluteUri;
 }
-using var server = new CommandServer(prefix);
+var router = new HttpRouter([new HealthEndpoint(), new CommandsEndpoint()]);
+using var server = new CommandServer(router, prefix);
 Console.WriteLine($"Listening for commands at {prefix}commands");
 await server.RunAsync(shutdown.Token);

@@ -4,7 +4,7 @@ Athena Desktop is the Windows desktop client for Athena, written in C#.
 
 ## Architecture
 
-Athena runs on the Raspberry Pi and handles voice transcription and command routing. The desktop client will receive structured commands from Athena and execute supported Windows actions.
+Athena runs on the Raspberry Pi and handles voice transcription and command routing. The desktop client receives structured commands from Athena and executes supported Windows actions.
 
 - **Athena:** Decides what action to perform and which backend should handle it.
 - **Athena Desktop:** Executes supported PC actions and returns their results.
@@ -17,15 +17,28 @@ The HTTP implementation separates listener lifecycle, routing, and endpoint beha
 - `src/server/CommandServer.cs` accepts HTTP requests, delegates to the router, and closes responses.
 - `src/server/HttpRouter.cs` matches URL paths and returns 404 for unknown routes.
 - `src/server/endpoints/` contains endpoint classes that define their paths, validate methods, and handle requests.
-- `src/Program.cs` registers endpoints with the router and configures the server.
+- `src/dispatch/CommandDispatcher.cs` maps command names to action handlers and returns command results.
+- `src/actions/ProgramActions.cs` resolves supported application names and starts their executables.
+- `src/Program.cs` registers endpoints with the router, connects the dispatcher, and configures the server.
 
 To add an endpoint, implement `IHttpEndpoint` in the endpoints directory and register it in `Program.cs`.
 
 ## Current Progress
 
-The desktop process includes an HTTP command-server scaffold and JSON request/response models. Desktop actions are not implemented yet.
+The desktop supports HTTP health checks and application launching through `POST /commands`. The first supported application is Notepad. The complete Pi-to-desktop flow has been tested: an HTTP command reaches the dispatcher, launches Notepad, and returns a result.
 
-Planned capabilities include launching applications and arranging windows. The initial HTTP contract below still needs to be aligned with the Pi command router.
+Closing, minimizing, focusing, and arranging application windows are future actions and are not implemented yet.
+
+```mermaid
+flowchart LR
+    Pi[Athena on Raspberry Pi] -->|HTTP request| Server[CommandServer]
+    Server --> Router[HttpRouter]
+    Router -->|GET /health| Health[HealthEndpoint]
+    Router -->|POST /commands| Commands[CommandsEndpoint]
+    Commands --> Dispatcher[CommandDispatcher]
+    Dispatcher -->|launch_app| Actions[ProgramActions.Open]
+    Actions --> Notepad[Notepad]
+```
 
 ## Development
 
@@ -46,17 +59,19 @@ The server listens on `http://localhost:5000/` by default and accepts `POST /com
 }
 ```
 
-Until a handler is supplied to `CommandsEndpoint`, valid commands return HTTP 501:
+When the launch succeeds, the server returns HTTP 200:
 
 ```json
 {
   "requestId": "example-1",
-  "success": false,
-  "message": "Command execution is not implemented yet."
+  "success": true,
+  "message": "Launch requested for 'notepad'."
 }
 ```
 
-Malformed JSON or a missing command returns HTTP 400. Supply a handler through the `CommandsEndpoint` constructor in `Program.cs` to implement actions; handlers should echo the request ID in their response. Requests are processed sequentially.
+Malformed JSON or a missing command returns HTTP 400. Dispatched commands return HTTP 200 with a `success` flag: unsupported commands, unknown applications, invalid application parameters, and launch failures return `success: false` with an explanatory message. Responses preserve the request ID. Unknown routes return HTTP 404; unsupported methods return HTTP 405 with an `Allow` header. Requests are processed sequentially.
+
+The dispatcher is connected through the `CommandsEndpoint` constructor in `Program.cs`. An endpoint constructed without a handler still returns HTTP 501 for valid commands. Add application mappings in `ProgramActions` and register new action handlers in `CommandDispatcher`.
 
 Use `GET /health` to check that the HTTP server is responding:
 

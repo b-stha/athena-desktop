@@ -8,17 +8,43 @@ namespace Athena.Desktop.Dispatch;
 public sealed class CommandDispatcher
 {
     private readonly ProgramActions programActions = new();
-    private readonly Dictionary<string, Func<CommandRequest, CancellationToken, Task<CommandResponse>>> handlers;
+    private readonly Action shutdownAction;
+    private readonly Dictionary<string, Func<CommandRequest, CancellationToken, Task<CommandDispatchResult>>> handlers;
 
-    public CommandDispatcher()
+    public CommandDispatcher(Action? shutdownAction = null)
     {
+        this.shutdownAction = shutdownAction ?? new PowerActions().Shutdown;
         handlers = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["launch_app"] = LaunchAppAsync
+            ["launch_app"] = LaunchAppAsync,
+            ["shutdown"] = ShutdownAsync
         };
     }
 
-    private Task<CommandResponse> LaunchAppAsync(CommandRequest request, CancellationToken cancellationToken)
+    private Task<CommandDispatchResult> ShutdownAsync(CommandRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(new CommandDispatchResult
+        {
+            Response = new CommandResponse
+            {
+                RequestId = request.RequestId,
+                Success = true,
+                Message = "Shutdown accepted."
+            },
+            AfterResponse = async token =>
+            {
+                // The server closes the acknowledgement before invoking this action.
+                // Delay here instead of using shutdown /t > 0, which implies /f.
+                await Task.Delay(TimeSpan.FromSeconds(2), token);
+                token.ThrowIfCancellationRequested();
+                shutdownAction();
+            }
+        });
+    }
+
+    private Task<CommandDispatchResult> LaunchAppAsync(CommandRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -45,15 +71,18 @@ public sealed class CommandDispatcher
             return ReplyAsync(false, $"Could not launch '{programName}'.");
         }
 
-        Task<CommandResponse> ReplyAsync(bool success, string message) => Task.FromResult(new CommandResponse
+        Task<CommandDispatchResult> ReplyAsync(bool success, string message) => Task.FromResult(new CommandDispatchResult
         {
-            RequestId = request.RequestId,
-            Success = success,
-            Message = message
+            Response = new CommandResponse
+            {
+                RequestId = request.RequestId,
+                Success = success,
+                Message = message
+            }
         });
     }
 
-    public Task<CommandResponse> DispatchAsync(
+    public Task<CommandDispatchResult> DispatchAsync(
         CommandRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -71,11 +100,14 @@ public sealed class CommandDispatcher
 
         return FailureAsync($"Unsupported command: '{request.Command}'.");
 
-        Task<CommandResponse> FailureAsync(string message) => Task.FromResult(new CommandResponse
+        Task<CommandDispatchResult> FailureAsync(string message) => Task.FromResult(new CommandDispatchResult
         {
-            RequestId = request.RequestId,
-            Success = false,
-            Message = message
+            Response = new CommandResponse
+            {
+                RequestId = request.RequestId,
+                Success = false,
+                Message = message
+            }
         });
     }
 }

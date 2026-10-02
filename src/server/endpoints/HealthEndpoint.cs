@@ -7,15 +7,17 @@ public sealed class HealthEndpoint : IHttpEndpoint
 {
     public string Path => "/health";
 
-    public Task HandleAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    public async Task<Func<CancellationToken, Task>?> HandleAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
         if (context.Request.HttpMethod != "GET")
         {
             context.Response.Headers["Allow"] = "GET";
-            return HttpJson.ReplyAsync(context.Response, 405,
+            await HttpJson.ReplyAsync(context.Response, 405,
                 new CommandResponse { Message = "Use GET /health." }, cancellationToken);
+            return null;
         }
 
-        return HttpJson.ReplyAsync(context.Response, 200, new { Status = "ok" }, cancellationToken);
+        await HttpJson.ReplyAsync(context.Response, 200, new { Status = "ok" }, cancellationToken);
+        return null;
     }
 }

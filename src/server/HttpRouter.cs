@@ -13,15 +13,16 @@ public sealed class HttpRouter
         this.endpoints = endpoints.ToDictionary(endpoint => endpoint.Path, StringComparer.Ordinal);
     }
 
-    public Task RouteAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    public async Task<Func<CancellationToken, Task>?> RouteAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
         var path = context.Request.Url?.AbsolutePath ?? string.Empty;
         if (endpoints.TryGetValue(path, out var endpoint))
         {
-            return endpoint.HandleAsync(context, cancellationToken);
+            return await endpoint.HandleAsync(context, cancellationToken);
         }
 
-        return HttpJson.ReplyAsync(context.Response, 404,
+        await HttpJson.ReplyAsync(context.Response, 404,
             new CommandResponse { Message = "Endpoint not found." }, cancellationToken);
+        return null;
     }
 }

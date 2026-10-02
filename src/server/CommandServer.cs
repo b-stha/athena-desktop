@@ -24,13 +24,32 @@ public sealed class CommandServer : IDisposable
             while (!cancellationToken.IsCancellationRequested)
             {
                 var context = await listener.GetContextAsync();
+                Func<CancellationToken, Task>? afterResponse;
                 try
                 {
-                    await router.RouteAsync(context, cancellationToken);
+                    afterResponse = await router.RouteAsync(context, cancellationToken);
                 }
                 finally
                 {
                     context.Response.Close();
+                }
+
+                // Only run deferred actions after writing and closing both succeed.
+                if (afterResponse is not null)
+                {
+                    try
+                    {
+                        await afterResponse(cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        // The acknowledgement is already sent, so report failures locally.
+                        Console.Error.WriteLine($"Post-response action failed: {exception.Message}");
+                    }
                 }
             }
         }

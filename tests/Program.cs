@@ -9,16 +9,19 @@ using Athena.Desktop.Models;
 using Athena.Desktop.Server;
 using Athena.Desktop.Server.Endpoints;
 
-// Every dispatcher has an injected fake: running this suite cannot request Windows shutdown.
-var tests = new (string Name, Func<Task> Run)[]
+// All three power actions are injected fakes in every dispatcher.
+var tests = new List<(string Name, Func<Task> Run)>
 {
-    ("Shutdown dispatch defers execution and honors cancellation", DeferredShutdownAsync),
-    ("Ordinary dispatch responses retain their behavior", OrdinaryDispatchAsync),
-    ("Client receives complete acknowledgment before shutdown", AcknowledgmentBeforeShutdownAsync),
-    ("A failed response write does not expose the shutdown callback", FailedResponseWriteAsync),
-    ("Shutdown failure is logged and the server keeps serving", ShutdownFailureAsync),
-    ("Server cancellation prevents a pending shutdown", ServerCancellationAsync)
+    ("Ordinary dispatch responses retain their behavior", OrdinaryDispatchAsync)
 };
+foreach (var (command, acknowledgment) in PowerCommandTests.Cases)
+{
+    tests.Add(($"{command}: dispatch defers execution and honors cancellation", () => DeferredPowerAsync(command, acknowledgment)));
+    tests.Add(($"{command}: client receives complete acknowledgment before execution", () => AcknowledgmentBeforePowerAsync(command, acknowledgment)));
+    tests.Add(($"{command}: failed response write prevents execution", () => FailedResponseWriteAsync(command)));
+    tests.Add(($"{command}: failure is logged and server keeps serving", () => PowerFailureAsync(command, acknowledgment)));
+    tests.Add(($"{command}: server cancellation prevents pending execution", () => ServerCancellationAsync(command, acknowledgment)));
+}
 
 var failures = 0;
 foreach (var (name, run) in tests)
@@ -35,22 +38,23 @@ foreach (var (name, run) in tests)
     }
 }
 
-Console.WriteLine($"{tests.Length - failures}/{tests.Length} checks passed.");
+Console.WriteLine($"{tests.Count - failures}/{tests.Count} checks passed.");
 return failures == 0 ? 0 : 1;
 
-static async Task DeferredShutdownAsync()
+static async Task DeferredPowerAsync(string command, string acknowledgment)
 {
-    var executions = 0;
-    var dispatcher = new CommandDispatcher(() => executions++);
+    var executions = new List<string>();
+    var dispatcher = PowerCommandTests.CreateDispatcher(executions.Add);
+    var requestId = $"dispatch-{command}";
     var result = await dispatcher.DispatchAsync(new CommandRequest
     {
-        Command = " SHUTDOWN ", RequestId = "dispatch-shutdown"
+        Command = $" {command.ToUpperInvariant()} ", RequestId = requestId
     });
-    Assert(result.Response.Success, "Shutdown should be accepted.");
-    Assert(result.Response.Message == "Shutdown accepted.", "Expected the acceptance message.");
-    Assert(result.Response.RequestId == "dispatch-shutdown", "The request ID should be preserved.");
-    Assert(result.AfterResponse is not null, "Shutdown should return a deferred action.");
-    Assert(executions == 0, "Dispatching must not run shutdown.");
+    Assert(result.Response.Success, $"{command} should be accepted.");
+    Assert(result.Response.Message == acknowledgment, "Expected the command's acceptance message.");
+    Assert(result.Response.RequestId == requestId, "The request ID should be preserved.");
+    Assert(result.AfterResponse is not null, $"{command} should return a deferred action.");
+    Assert(executions.Count == 0, "Dispatching must not run any power action.");
 
     using (var alreadyCanceled = new CancellationTokenSource())
     {
@@ -61,17 +65,17 @@ static async Task DeferredShutdownAsync()
     {
         await AssertCanceledAsync(() => result.AfterResponse!(canceledDuringDelay.Token));
     }
-    Assert(executions == 0, "Cancellation must prevent the injected shutdown action.");
+    Assert(executions.Count == 0, "Cancellation must prevent all injected power actions.");
 
     var elapsed = Stopwatch.StartNew();
     await result.AfterResponse!(CancellationToken.None);
-    Assert(executions == 1, "The deferred callback should run shutdown once.");
-    Assert(elapsed.Elapsed >= TimeSpan.FromMilliseconds(1900), "Shutdown should retain the two-second delivery grace period.");
+    Assert(executions.SequenceEqual([command]), "The deferred callback should run exactly the matching power action once.");
+    Assert(elapsed.Elapsed >= TimeSpan.FromMilliseconds(1900), "Power actions should retain the two-second delivery grace period.");
 }
 
 static async Task OrdinaryDispatchAsync()
 {
-    var dispatcher = new CommandDispatcher(() => throw new Exception("Unexpected shutdown execution."));
+    var dispatcher = PowerCommandTests.CreateDispatcher(command => throw new Exception($"Unexpected {command} execution."));
     var cases = new (CommandRequest Request, string Message)[]
     {
         (new() { Command = " ", RequestId = "empty" }, "Command is required."),
@@ -93,21 +97,25 @@ static async Task OrdinaryDispatchAsync()
     }
 }
 
-static async Task AcknowledgmentBeforeShutdownAsync()
+static async Task AcknowledgmentBeforePowerAsync(string command, string acknowledgment)
 {
     var acknowledgmentReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    var shutdownObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-    await using var server = new TestServer(() => shutdownObserved.TrySetResult(acknowledgmentReceived.Task.IsCompletedSuccessfully));
+    var actionObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    await using var server = new TestServer(executed => actionObserved.TrySetResult(
+        executed == command && acknowledgmentReceived.Task.IsCompletedSuccessfully));
 
-    var response = await server.Client.PostAsJsonAsync("commands", new { command = "shutdown", requestId = "http-shutdown" });
+    var requestId = $"http-{command}";
+    var response = await server.Client.PostAsJsonAsync("commands", new { command, requestId });
     using (response)
     {
-        Assert(response.StatusCode == HttpStatusCode.OK, "Shutdown should receive HTTP 200.");
+        Assert(response.StatusCode == HttpStatusCode.OK, $"{command} should receive HTTP 200.");
         var body = await response.Content.ReadFromJsonAsync<CommandResponse>();
-        Assert(body is { Success: true, Message: "Shutdown accepted.", RequestId: "http-shutdown" }, "The full acknowledgment should reach the client.");
+        Assert(body is { Success: true } && body.Message == acknowledgment && body.RequestId == requestId,
+            "The full acknowledgment should reach the client with its request ID.");
         acknowledgmentReceived.SetResult();
     }
-    Assert(await shutdownObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)), "Shutdown ran before the client received the complete acknowledgment.");
+    Assert(await actionObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)),
+        "The matching power action must run after the client receives the complete acknowledgment.");
     await AssertHealthyAsync(server.Client);
 
     using var invalid = await server.Client.PostAsync("commands", new StringContent("{", Encoding.UTF8, "application/json"));
@@ -119,24 +127,27 @@ static async Task AcknowledgmentBeforeShutdownAsync()
     Assert(unknownRoute.StatusCode == HttpStatusCode.NotFound, "Unknown routes should remain HTTP 404.");
 }
 
-static async Task ShutdownFailureAsync()
+static async Task PowerFailureAsync(string command, string acknowledgment)
 {
-    const string failureMarker = "Injected shutdown failure for regression test";
-    var shutdownObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var failureMarker = $"Injected {command} failure for regression test";
+    var actionObserved = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
     var previousError = Console.Error;
     using var capturedError = new StringWriter();
     Console.SetError(capturedError);
     try
     {
-        await using var server = new TestServer(() =>
+        await using var server = new TestServer(executed =>
         {
-            shutdownObserved.SetResult();
+            actionObserved.SetResult(executed);
             throw new InvalidOperationException(failureMarker);
         });
-        using var response = await server.Client.PostAsJsonAsync("commands", new { command = "shutdown", requestId = "failure-shutdown" });
+        var requestId = $"failure-{command}";
+        using var response = await server.Client.PostAsJsonAsync("commands", new { command, requestId });
         var body = await response.Content.ReadFromJsonAsync<CommandResponse>();
-        Assert(response.StatusCode == HttpStatusCode.OK && body is { Success: true, Message: "Shutdown accepted." }, "The acknowledgment should already be successful when shutdown later fails.");
-        await shutdownObserved.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert(response.StatusCode == HttpStatusCode.OK && body is { Success: true } &&
+            body.Message == acknowledgment && body.RequestId == requestId,
+            "The acknowledgment should already be successful when the power action later fails.");
+        Assert(await actionObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)) == command, "The matching power action should run.");
         await AssertHealthyAsync(server.Client);
         Assert(capturedError.ToString().Contains(failureMarker, StringComparison.Ordinal), "Deferred action failures should be logged.");
     }
@@ -146,27 +157,29 @@ static async Task ShutdownFailureAsync()
     }
 }
 
-static async Task FailedResponseWriteAsync()
+static async Task FailedResponseWriteAsync(string command)
 {
     var executions = 0;
-    var endpoint = new FailedWriteEndpoint(() => Interlocked.Increment(ref executions));
+    var endpoint = new FailedWriteEndpoint(_ => Interlocked.Increment(ref executions));
     await using var server = new TestServer([new HealthEndpoint(), endpoint]);
-    using var response = await server.Client.PostAsJsonAsync("commands", new { command = "shutdown", requestId = "failed-write" });
+    using var response = await server.Client.PostAsJsonAsync("commands", new { command, requestId = $"failed-write-{command}" });
     Assert(await response.Content.ReadAsStringAsync() == string.Empty, "The deliberately closed response should have no acknowledgment body.");
     await endpoint.WriteFailed.Task.WaitAsync(TimeSpan.FromSeconds(10));
     await AssertHealthyAsync(server.Client);
-    Assert(Volatile.Read(ref executions) == 0, "A failed response write must not schedule shutdown.");
+    Assert(Volatile.Read(ref executions) == 0, "A failed response write must not schedule any power action.");
 }
 
-static async Task ServerCancellationAsync()
+static async Task ServerCancellationAsync(string command, string acknowledgment)
 {
     var executions = 0;
-    await using var server = new TestServer(() => Interlocked.Increment(ref executions));
-    using var response = await server.Client.PostAsJsonAsync("commands", new { command = "shutdown", requestId = "canceled-shutdown" });
+    await using var server = new TestServer(_ => Interlocked.Increment(ref executions));
+    var requestId = $"canceled-{command}";
+    using var response = await server.Client.PostAsJsonAsync("commands", new { command, requestId });
     var body = await response.Content.ReadFromJsonAsync<CommandResponse>();
-    Assert(body is { Success: true, Message: "Shutdown accepted." }, "Cancellation check needs a delivered acknowledgment.");
+    Assert(body is { Success: true } && body.Message == acknowledgment && body.RequestId == requestId,
+        "Cancellation check needs a delivered acknowledgment with its request ID.");
     await server.StopAsync();
-    Assert(Volatile.Read(ref executions) == 0, "Stopping the server during the grace period should prevent shutdown.");
+    Assert(Volatile.Read(ref executions) == 0, "Stopping the server during the grace period should prevent all power actions.");
 }
 
 static async Task AssertHealthyAsync(HttpClient client)
@@ -201,8 +214,8 @@ sealed class TestServer : IAsyncDisposable
     private readonly CommandServer server;
     private readonly Task running;
 
-    public TestServer(Action shutdownAction)
-        : this([new HealthEndpoint(), new CommandsEndpoint(new CommandDispatcher(shutdownAction).DispatchAsync)])
+    public TestServer(Action<string> powerAction)
+        : this([new HealthEndpoint(), new CommandsEndpoint(PowerCommandTests.CreateDispatcher(powerAction).DispatchAsync)])
     {
     }
 
@@ -244,9 +257,9 @@ sealed class TestServer : IAsyncDisposable
     }
 }
 
-sealed class FailedWriteEndpoint(Action shutdownAction) : IHttpEndpoint
+sealed class FailedWriteEndpoint(Action<string> powerAction) : IHttpEndpoint
 {
-    private readonly CommandDispatcher dispatcher = new(shutdownAction);
+    private readonly CommandDispatcher dispatcher = PowerCommandTests.CreateDispatcher(powerAction);
     public string Path => "/commands";
     public TaskCompletionSource WriteFailed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -269,4 +282,20 @@ sealed class FailedWriteEndpoint(Action shutdownAction) : IHttpEndpoint
             return null;
         }
     }
+}
+
+static class PowerCommandTests
+{
+    public static readonly (string Command, string Acknowledgment)[] Cases =
+    [
+        ("shutdown", "Shutdown accepted."),
+        ("restart", "Restart accepted."),
+        ("sleep", "Sleep accepted.")
+    ];
+
+    // Supply every action even when testing one command, so incorrect routing is safe to detect.
+    public static CommandDispatcher CreateDispatcher(Action<string> action) => new(
+        shutdownAction: () => action("shutdown"),
+        restartAction: () => action("restart"),
+        sleepAction: () => action("sleep"));
 }

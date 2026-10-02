@@ -19,14 +19,14 @@ The HTTP implementation separates listener lifecycle, routing, and endpoint beha
 - `src/server/endpoints/` contains endpoint classes that define their paths, validate methods, and handle requests.
 - `src/dispatch/CommandDispatcher.cs` maps command names to action handlers and returns command results.
 - `src/actions/ProgramActions.cs` resolves supported application names and starts their executables.
-- `src/actions/PowerActions.cs` requests Windows shutdown after the command response is sent.
+- `src/actions/PowerActions.cs` requests Windows shutdown, restart, or sleep after the command response is sent.
 - `src/Program.cs` registers endpoints with the router, connects the dispatcher, and configures the server.
 
 To add an endpoint, implement `IHttpEndpoint` in the endpoints directory and register it in `Program.cs`.
 
 ## Current Progress
 
-The desktop supports HTTP health checks, application launching, and shutdown through `POST /commands`. The first supported application is Notepad. The complete Pi-to-desktop application launch flow has been tested: an HTTP command reaches the dispatcher, launches Notepad, and returns a result.
+The desktop supports HTTP health checks, application launching, shutdown, restart, and sleep through `POST /commands`. The first supported application is Notepad. The complete Pi-to-desktop application launch flow has been tested: an HTTP command reaches the dispatcher, launches Notepad, and returns a result.
 
 Closing, minimizing, focusing, and arranging application windows are future actions and are not implemented yet.
 
@@ -50,7 +50,7 @@ dotnet build src/Athena.Desktop.csproj
 dotnet run --project src/Athena.Desktop.csproj
 ```
 
-Run the regression checks with `dotnet run --project tests/Athena.Desktop.RegressionTests.csproj`. They use fake shutdown actions and temporary localhost ports to check response ordering, cancellation, and deferred failure handling without shutting down Windows.
+Run the regression checks with `dotnet run --project tests/Athena.Desktop.RegressionTests.csproj`. They use fake power actions and temporary localhost ports to check response ordering, cancellation, and deferred failure handling without changing the computer's power state.
 
 The server listens on `http://localhost:5000/` by default and accepts `POST /commands`:
 
@@ -74,7 +74,17 @@ When the launch succeeds, the server returns HTTP 200:
 
 Malformed JSON or a missing command returns HTTP 400. Dispatched commands return HTTP 200 with a `success` flag: unsupported commands, unknown applications, invalid application parameters, and launch failures return `success: false` with an explanatory message. Responses preserve the request ID. Unknown routes return HTTP 404; unsupported methods return HTTP 405 with an `Allow` header. Requests are processed sequentially.
 
-For shutdown, send `{"requestId":"example-2","command":"shutdown"}`. The server returns HTTP 200 with `{"requestId":"example-2","success":true,"message":"Shutdown accepted."}` and closes the response before executing the action. It waits two seconds in the application, then invokes `shutdown.exe /s /t 0` without forcing applications to close. The acknowledgement means the desktop accepted the command; it does not confirm that Windows shut down. Any later failure is logged to standard error. Stopping the server during the delay cancels the pending action. Completing the HTTP response does not prove the Pi received it.
+Power commands use the same request format, for example `{"requestId":"example-2","command":"restart"}`. The server returns HTTP 200 with `{"requestId":"example-2","success":true,"message":"Restart accepted."}` and closes the response before executing the action. Each action waits two seconds in the application:
+
+| Command | Acknowledgement | Windows action |
+| --- | --- | --- |
+| `shutdown` | `Shutdown accepted.` | `shutdown.exe /s /t 0` |
+| `restart` | `Restart accepted.` | `shutdown.exe /r /t 0` |
+| `sleep` | `Sleep accepted.` | `SetSuspendState` requesting sleep with wake events enabled |
+
+Shutdown and restart leave applications free to block the request if they have unsaved work. Sleep uses the [Windows power API](https://learn.microsoft.com/en-us/windows/win32/api/powrprof/nf-powrprof-setsuspendstate) and temporarily enables the process's existing shutdown privilege. Windows must support sleep and the client account must have the required power-management permission; unsupported or denied requests are logged as failures.
+
+The acknowledgement means the desktop accepted the command; it does not confirm that Windows performed the action. Any later failure is logged to standard error. Stopping the server during the delay cancels the pending action. Completing the HTTP response does not prove the Pi received it.
 
 The dispatcher is connected through the `CommandsEndpoint` constructor in `Program.cs`. An endpoint constructed without a handler still returns HTTP 501 for valid commands. Add application mappings in `ProgramActions` and register new action handlers in `CommandDispatcher`.
 

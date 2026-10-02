@@ -8,20 +8,23 @@ namespace Athena.Desktop.Dispatch;
 public sealed class CommandDispatcher
 {
     private readonly ProgramActions programActions = new();
-    private readonly Action shutdownAction;
     private readonly Dictionary<string, Func<CommandRequest, CancellationToken, Task<CommandDispatchResult>>> handlers;
 
-    public CommandDispatcher(Action? shutdownAction = null)
+    public CommandDispatcher(
+        Action? shutdownAction = null, Action? restartAction = null, Action? sleepAction = null)
     {
-        this.shutdownAction = shutdownAction ?? new PowerActions().Shutdown;
+        var powerActions = new PowerActions();
         handlers = new(StringComparer.OrdinalIgnoreCase)
         {
             ["launch_app"] = LaunchAppAsync,
-            ["shutdown"] = ShutdownAsync
+            ["shutdown"] = (request, token) => PowerAsync(request, token, "Shutdown", shutdownAction ?? powerActions.Shutdown),
+            ["restart"] = (request, token) => PowerAsync(request, token, "Restart", restartAction ?? powerActions.Restart),
+            ["sleep"] = (request, token) => PowerAsync(request, token, "Sleep", sleepAction ?? powerActions.Sleep)
         };
     }
 
-    private Task<CommandDispatchResult> ShutdownAsync(CommandRequest request, CancellationToken cancellationToken)
+    private static Task<CommandDispatchResult> PowerAsync(
+        CommandRequest request, CancellationToken cancellationToken, string actionName, Action action)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -31,7 +34,7 @@ public sealed class CommandDispatcher
             {
                 RequestId = request.RequestId,
                 Success = true,
-                Message = "Shutdown accepted."
+                Message = $"{actionName} accepted."
             },
             AfterResponse = async token =>
             {
@@ -39,7 +42,7 @@ public sealed class CommandDispatcher
                 // Delay here instead of using shutdown /t > 0, which implies /f.
                 await Task.Delay(TimeSpan.FromSeconds(2), token);
                 token.ThrowIfCancellationRequested();
-                shutdownAction();
+                action();
             }
         });
     }

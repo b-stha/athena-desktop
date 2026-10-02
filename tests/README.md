@@ -4,4 +4,4 @@ Run the dependency-free regression checks with:
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
 
-The runner injects fake shutdown actions throughout. It never requests Windows shutdown or launches an application. The HTTP checks bind temporary localhost ports and verify that a client receives the full acknowledgment before the fake action runs, that a failed response write prevents execution, that deferred failures are logged without stopping the server, and that cancellation prevents pending execution.
+Every dispatcher injects fake shutdown, restart, and sleep actions. The runner never performs a real power action or launches an application. For each power command, it verifies the correct action mapping, request ID and acknowledgment, two-second delay, cancellation, client receipt before execution, failed response writes, and deferred failure logging while the server continues serving. The HTTP checks bind temporary localhost ports.

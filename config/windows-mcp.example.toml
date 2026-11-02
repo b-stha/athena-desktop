@@ -14,7 +14,9 @@ auth_key = "REPLACE_WITH_A_RANDOM_SECRET_AND_CONFIGURE_THE_SAME_TOKEN_ON_THE_PI"
 ip_allowlist = ["127.0.0.1/32"]
 
 [control]
-enabled = true
+# Requires the revision in windows-mcp-runtime.json; PyPI 0.8.8 ignores this.
+# Concurrent physical and AI input is intentional.
+enabled = false
 policy = "relaxed"
 
 # Optional tool restrictions use upstream's names:

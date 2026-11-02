@@ -2,6 +2,25 @@
 
 Athena Desktop is the Windows desktop client for Athena, written in C#.
 
+On `codex/agent-mcp-rebuild`, the default role is **Windows-MCP supervisor**.
+Athena's agent and voice pipeline stay on the Raspberry Pi; the Pi connects
+directly to Windows-MCP's Streamable HTTP endpoint. This tray application starts
+and stops the preinstalled upstream process in your Windows user session.
+
+Start with [Windows-MCP setup](docs/WINDOWS_MCP.md) and the shared
+[architecture plan](docs/ARCHITECTURE.md). Copy the example configuration, provision
+the pinned upstream runtime, and run `--check-config` before starting it.
+
+```text
+Athena agent on Pi -> MCP over HTTP -> Windows-MCP -> Windows controls
+                                          ^
+                               Athena Desktop owns process
+```
+
+The sections below document the retained **legacy HTTP mode**. Select it
+explicitly using `ATHENA_DESKTOP_MODE=legacy`. Existing pending background/startup
+work is preserved; its installer now accepts `-Mode mcp` or `-Mode legacy`.
+
 ## Architecture
 
 Athena runs on the Raspberry Pi and handles voice transcription and command routing. The desktop client receives structured commands from Athena and executes supported Windows actions.
@@ -50,7 +69,7 @@ Athena Desktop runs in the signed-in user's session with a notification area ico
 Install from a regular PowerShell terminal in this repository. The installer needs the .NET 10 SDK and the [.NET 10 Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) for your Windows architecture. Set the bind address to the desktop's actual LAN IP so the Pi can reach it:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Install -BindHost 192.168.68.138
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Install -Mode legacy -BindHost 192.168.68.138
 ```
 
 The installer publishes a Release build to `%LOCALAPPDATA%\AthenaDesktop\app`, creates `Athena Desktop.lnk` in your Startup folder, and starts the client. It starts again when you sign in; signing out ends that session. Installation does not need administrator rights. HTTP URL reservations and firewall access for the chosen address and port must already be configured separately.

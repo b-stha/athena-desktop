@@ -10,12 +10,15 @@ using Athena.Desktop.Models;
 using Athena.Desktop.Server;
 using Athena.Desktop.Server.Endpoints;
 
+if (await McpTests.RunFixtureAsync(args) is { } fixtureExitCode) return fixtureExitCode;
+
 // All three power actions are injected fakes in every dispatcher.
 var tests = new List<(string Name, Func<Task> Run)>
 {
     ("Ordinary dispatch responses retain their behavior", OrdinaryDispatchAsync)
 };
 tests.AddRange(BackgroundTests.Cases);
+tests.AddRange(McpTests.Cases);
 foreach (var (command, acknowledgment) in PowerCommandTests.Cases)
 {
     tests.Add(($"{command}: dispatch defers execution and honors cancellation", () => DeferredPowerAsync(command, acknowledgment)));
@@ -24,6 +27,7 @@ foreach (var (command, acknowledgment) in PowerCommandTests.Cases)
     tests.Add(($"{command}: failure is logged and server keeps serving", () => PowerFailureAsync(command, acknowledgment)));
     tests.Add(($"{command}: server cancellation prevents pending execution", () => ServerCancellationAsync(command, acknowledgment)));
 }
+if (args.Contains("--mcp-only")) tests = McpTests.Cases.ToList();
 
 var failures = 0;
 foreach (var (name, run) in tests)

@@ -16,3 +16,9 @@ coverage/
 *.suo
 *.userosscache
 *.sln.docstates
+
+# Local MCP credentials/configuration and provisioned Python environments
+config/mcp.json
+config/windows-mcp.toml
+.mcp-runtime/
+.venv*/

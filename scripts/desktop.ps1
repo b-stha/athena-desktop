@@ -13,7 +13,10 @@ param(
     [string] $Action = 'Install',
     [string] $InstallDirectory = (Join-Path $env:LOCALAPPDATA 'AthenaDesktop\app'),
     [string] $BindHost,
-    [string] $HttpPrefix
+    [string] $HttpPrefix,
+    [ValidateSet('mcp', 'legacy')]
+    [string] $Mode = 'mcp',
+    [string] $McpSettingsPath
 )
 
 Set-StrictMode -Version Latest
@@ -26,6 +29,17 @@ $startupDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::St
 $shortcutPath = Join-Path $startupDirectory 'Athena Desktop.lnk'
 $hasBindHost = $PSBoundParameters.ContainsKey('BindHost')
 $hasHttpPrefix = $PSBoundParameters.ContainsKey('HttpPrefix')
+$hasMcpSettings = $PSBoundParameters.ContainsKey('McpSettingsPath')
+
+if (($PSBoundParameters.ContainsKey('Mode') -or $hasMcpSettings) -and $Action -ne 'Install') {
+    throw '-Mode and -McpSettingsPath configure the installation; use them with -Action Install.'
+}
+if ($Action -eq 'Install' -and $Mode -eq 'mcp' -and ($hasBindHost -or $hasHttpPrefix)) {
+    throw '-BindHost/-HttpPrefix belong to -Mode legacy. MCP listen settings are in Windows-MCP config.toml.'
+}
+if ($Action -eq 'Install' -and $Mode -eq 'legacy' -and $hasMcpSettings) {
+    throw '-McpSettingsPath belongs to -Mode mcp.'
+}
 
 if (($hasBindHost -or $hasHttpPrefix) -and $Action -ne 'Install') {
     throw '-BindHost and -HttpPrefix configure the installation; use them with -Action Install.'
@@ -248,6 +262,32 @@ switch ($Action) {
             if (-not (Test-Path -LiteralPath (Join-Path $stagingPath 'Athena.Desktop.exe') -PathType Leaf)) {
                 throw 'Publishing did not produce Athena.Desktop.exe.'
             }
+            if ($Mode -eq 'mcp') {
+                if ([string]::IsNullOrWhiteSpace($McpSettingsPath)) {
+                    $McpSettingsPath = [Environment]::GetEnvironmentVariable('ATHENA_MCP_SETTINGS', 'User')
+                    if ([string]::IsNullOrWhiteSpace($McpSettingsPath)) {
+                        $McpSettingsPath = Join-Path $env:LOCALAPPDATA 'AthenaDesktop\mcp.json'
+                    }
+                }
+                $McpSettingsPath = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($McpSettingsPath))
+            }
+            # Validate the staged program before stopping the existing installation.
+            $previousMode = [Environment]::GetEnvironmentVariable('ATHENA_DESKTOP_MODE', 'Process')
+            $previousSettings = [Environment]::GetEnvironmentVariable('ATHENA_MCP_SETTINGS', 'Process')
+            try {
+                [Environment]::SetEnvironmentVariable('ATHENA_DESKTOP_MODE', $Mode, 'Process')
+                if ($Mode -eq 'mcp') { [Environment]::SetEnvironmentVariable('ATHENA_MCP_SETTINGS', $McpSettingsPath, 'Process') }
+                $checkError = Join-Path $stagingPath 'config-check.error.txt'
+                $checkOutput = Join-Path $stagingPath 'config-check.output.txt'
+                $check = Start-Process -FilePath (Join-Path $stagingPath 'Athena.Desktop.exe') -ArgumentList '--check-config' -WorkingDirectory $stagingPath -WindowStyle Hidden -PassThru -Wait -RedirectStandardError $checkError -RedirectStandardOutput $checkOutput
+                try {
+                    if ($check.ExitCode -ne 0) { throw "Configuration check failed; the previous installation has not been stopped. $(Get-Content -LiteralPath $checkError -Raw)" }
+                } finally { $check.Dispose() }
+                Remove-Item -LiteralPath $checkError, $checkOutput
+            } finally {
+                [Environment]::SetEnvironmentVariable('ATHENA_DESKTOP_MODE', $previousMode, 'Process')
+                [Environment]::SetEnvironmentVariable('ATHENA_MCP_SETTINGS', $previousSettings, 'Process')
+            }
             $publishedFiles = @(Get-ChildItem -LiteralPath $stagingPath -Recurse -File | ForEach-Object {
                 $_.FullName.Substring($stagingPath.Length + 1)
             })
@@ -271,6 +311,12 @@ switch ($Action) {
             }
             Remove-OwnedFiles @($previousFiles | Where-Object { $_ -notin $publishedFiles })
             Write-Manifest $publishedFiles
+            [Environment]::SetEnvironmentVariable('ATHENA_DESKTOP_MODE', $Mode, 'User')
+            [Environment]::SetEnvironmentVariable('ATHENA_DESKTOP_MODE', $Mode, 'Process')
+            if ($Mode -eq 'mcp') {
+                [Environment]::SetEnvironmentVariable('ATHENA_MCP_SETTINGS', $McpSettingsPath, 'User')
+                [Environment]::SetEnvironmentVariable('ATHENA_MCP_SETTINGS', $McpSettingsPath, 'Process')
+            }
             if ($hasBindHost) {
                 [Environment]::SetEnvironmentVariable('ATHENA_BIND_HOST', $BindHost, 'User')
                 [Environment]::SetEnvironmentVariable('ATHENA_BIND_HOST', $BindHost, 'Process')
@@ -285,7 +331,7 @@ switch ($Action) {
             $shortcut = $shell.CreateShortcut($shortcutPath)
             $shortcut.TargetPath = $executablePath
             $shortcut.WorkingDirectory = $installPath
-            $shortcut.Description = 'Athena Desktop command listener'
+            $shortcut.Description = 'Athena Desktop Windows integration'
             $shortcut.Save()
             Write-Host "Installed Athena Desktop at $installPath. It will start when you sign in."
             Start-Desktop

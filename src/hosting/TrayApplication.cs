@@ -12,11 +12,11 @@ internal sealed class TrayApplication : ApplicationContext
     private readonly IDisposable stopRegistration;
     private bool stopping;
 
-    public TrayApplication(DesktopRuntime runtime, DesktopInstance instance, string logPath)
+    public TrayApplication(DesktopRuntime runtime, DesktopInstance instance, string logPath, string mode = "mcp")
     {
         this.runtime = runtime;
         _ = dispatcher.Handle;
-        menu.Items.Add("Athena Desktop is running", null, (_, _) => { }).Enabled = false;
+        menu.Items.Add(mode == "mcp" ? "Managing Windows-MCP" : "Legacy command listener", null, (_, _) => { }).Enabled = false;
         menu.Items.Add("Open logs", null, (_, _) => OpenLogs(logPath));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Stop());
@@ -32,7 +32,7 @@ internal sealed class TrayApplication : ApplicationContext
         Post(() =>
         {
             if (exitCode != 0 && !stopping)
-                MessageBox.Show("Athena Desktop's command server stopped. Open the log file for details.",
+                MessageBox.Show("Athena Desktop's backend stopped. Open the log file for details.",
                     "Athena Desktop", MessageBoxButtons.OK, MessageBoxIcon.Error);
             ExitThread();
         });

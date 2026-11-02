@@ -1,0 +1,6 @@
+{
+  "Executable": "%LOCALAPPDATA%\\AthenaDesktop\\windows-mcp-0.8.8\\Scripts\\windows-mcp.exe",
+  "ConfigFile": "windows-mcp.toml",
+  "Endpoint": "http://127.0.0.1:8000/mcp",
+  "StartupTimeoutSeconds": 30
+}

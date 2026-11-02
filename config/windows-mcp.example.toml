@@ -1,0 +1,22 @@
+# Copy to a private, untracked location and set the token before running.
+[server]
+transport = "streamable-http"
+host = "127.0.0.1" # Change to your PC's reachable LAN or Tailscale interface for Pi access.
+port = 8000
+auth_key = "REPLACE_WITH_A_RANDOM_SECRET_AND_CONFIGURE_THE_SAME_TOKEN_ON_THE_PI"
+
+# For HTTPS, configure a matching certificate and key:
+# ssl_certfile = "cert.pem"
+# ssl_keyfile = "key.pem"
+
+[security]
+# Replace with your Pi's actual address (/32), or the appropriate restricted network.
+ip_allowlist = ["127.0.0.1/32"]
+
+[control]
+enabled = true
+policy = "relaxed"
+
+# Optional tool restrictions use upstream's names:
+# [tools]
+# exclude = ["PowerShell", "Registry"]

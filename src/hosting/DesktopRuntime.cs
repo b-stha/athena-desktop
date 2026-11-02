@@ -21,7 +21,7 @@ public sealed class DesktopRuntime : IDisposable
             catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { return 0; }
             catch (Exception exception)
             {
-                Console.Error.WriteLine($"Command server failed: {exception}");
+                Console.Error.WriteLine($"Desktop backend failed: {exception}");
                 return 1;
             }
             finally { Console.WriteLine("Athena Desktop stopped."); }

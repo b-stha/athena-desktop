@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Athena.Desktop.Dispatch;
+using Athena.Desktop.RegressionTests;
 using Athena.Desktop.Models;
 using Athena.Desktop.Server;
 using Athena.Desktop.Server.Endpoints;
@@ -14,6 +15,7 @@ var tests = new List<(string Name, Func<Task> Run)>
 {
     ("Ordinary dispatch responses retain their behavior", OrdinaryDispatchAsync)
 };
+tests.AddRange(BackgroundTests.Cases);
 foreach (var (command, acknowledgment) in PowerCommandTests.Cases)
 {
     tests.Add(($"{command}: dispatch defers execution and honors cancellation", () => DeferredPowerAsync(command, acknowledgment)));

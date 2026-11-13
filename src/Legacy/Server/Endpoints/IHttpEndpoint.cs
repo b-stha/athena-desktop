@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Athena.Desktop.Server.Endpoints;
+namespace Athena.Desktop.Legacy.Server.Endpoints;
 
 public interface IHttpEndpoint
 {

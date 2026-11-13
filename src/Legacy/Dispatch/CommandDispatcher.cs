@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Athena.Desktop.Actions;
-using Athena.Desktop.Models;
+using Athena.Desktop.Legacy.Actions;
+using Athena.Desktop.Legacy.Models;
 
-namespace Athena.Desktop.Dispatch;
+namespace Athena.Desktop.Legacy.Dispatch;
 
 public sealed class CommandDispatcher
 {

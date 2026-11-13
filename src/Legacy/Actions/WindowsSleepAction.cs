@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Win32.SafeHandles;
 
-namespace Athena.Desktop.Actions;
+namespace Athena.Desktop.Legacy.Actions;
 
 [SupportedOSPlatform("windows")]
 internal static class WindowsSleepAction

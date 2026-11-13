@@ -1,8 +1,8 @@
-using Athena.Desktop.Dispatch;
+using Athena.Desktop.Legacy.Dispatch;
 using Athena.Desktop.Hosting;
 using Athena.Desktop.Mcp;
-using Athena.Desktop.Server;
-using Athena.Desktop.Server.Endpoints;
+using Athena.Desktop.Legacy.Server;
+using Athena.Desktop.Legacy.Server.Endpoints;
 
 namespace Athena.Desktop;
 

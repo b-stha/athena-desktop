@@ -1,7 +1,7 @@
 using System.Net;
-using Athena.Desktop.Models;
+using Athena.Desktop.Legacy.Models;
 
-namespace Athena.Desktop.Server.Endpoints;
+namespace Athena.Desktop.Legacy.Server.Endpoints;
 
 public sealed class HealthEndpoint : IHttpEndpoint
 {

@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Athena.Desktop.Server;
+namespace Athena.Desktop.Legacy.Server;
 
 public sealed class CommandServer : IDisposable
 {

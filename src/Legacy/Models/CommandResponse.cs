@@ -1,4 +1,4 @@
-namespace Athena.Desktop.Models;
+namespace Athena.Desktop.Legacy.Models;
 
 public sealed class CommandResponse
 {

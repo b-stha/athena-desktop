@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Athena.Desktop.Actions;
+namespace Athena.Desktop.Legacy.Actions;
 
 public sealed class PowerActions
 {

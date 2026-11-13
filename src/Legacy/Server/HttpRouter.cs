@@ -1,8 +1,8 @@
 using System.Net;
-using Athena.Desktop.Models;
-using Athena.Desktop.Server.Endpoints;
+using Athena.Desktop.Legacy.Models;
+using Athena.Desktop.Legacy.Server.Endpoints;
 
-namespace Athena.Desktop.Server;
+namespace Athena.Desktop.Legacy.Server;
 
 public sealed class HttpRouter
 {

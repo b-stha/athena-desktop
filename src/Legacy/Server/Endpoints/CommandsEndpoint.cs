@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using Athena.Desktop.Models;
+using Athena.Desktop.Legacy.Models;
 
-namespace Athena.Desktop.Server.Endpoints;
+namespace Athena.Desktop.Legacy.Server.Endpoints;
 
 public sealed class CommandsEndpoint : IHttpEndpoint
 {

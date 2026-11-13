@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 
-namespace Athena.Desktop.Server;
+namespace Athena.Desktop.Legacy.Server;
 
 internal static class HttpJson
 {

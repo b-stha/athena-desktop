@@ -4,11 +4,11 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using Athena.Desktop.Dispatch;
+using Athena.Desktop.Legacy.Dispatch;
 using Athena.Desktop.RegressionTests;
-using Athena.Desktop.Models;
-using Athena.Desktop.Server;
-using Athena.Desktop.Server.Endpoints;
+using Athena.Desktop.Legacy.Models;
+using Athena.Desktop.Legacy.Server;
+using Athena.Desktop.Legacy.Server.Endpoints;
 
 if (await McpTests.RunFixtureAsync(args) is { } fixtureExitCode) return fixtureExitCode;
 

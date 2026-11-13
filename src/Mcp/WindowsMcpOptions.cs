@@ -19,7 +19,7 @@ public sealed record WindowsMcpOptions
     {
         path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
         if (!File.Exists(path))
-            throw new InvalidOperationException("Windows-MCP settings are missing. Configure ATHENA_MCP_SETTINGS; see docs/WINDOWS_MCP.md.");
+            throw new InvalidOperationException("Windows-MCP settings are missing. Configure ATHENA_MCP_SETTINGS using config/mcp.example.json.");
         WindowsMcpOptions settings;
         try
         {

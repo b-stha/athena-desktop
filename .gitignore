@@ -22,3 +22,7 @@ config/mcp.json
 config/windows-mcp.toml
 .mcp-runtime/
 .venv*/
+
+# Local documentation and temporary review artifacts
+/docs/
+/tmp/

@@ -1,8 +1,5 @@
-using Athena.Desktop.Legacy.Dispatch;
 using Athena.Desktop.Hosting;
 using Athena.Desktop.Mcp;
-using Athena.Desktop.Legacy.Server;
-using Athena.Desktop.Legacy.Server.Endpoints;
 
 namespace Athena.Desktop;
 
@@ -27,7 +24,7 @@ internal static class Program
             Console.WriteLine("--console: run with terminal logs and Ctrl-C. --stop: exit gracefully.");
             Console.WriteLine("--status: exit 0 when running, 1 when stopped (current user/session).");
             Console.WriteLine("--check-config: validate local settings without starting a process or opening the network.");
-            Console.WriteLine("Default: supervise Windows-MCP. ATHENA_DESKTOP_MODE=legacy enables the old command listener.");
+            Console.WriteLine("Athena Desktop supervises Windows-MCP.");
             return 0;
         }
         if (args.Contains("--status")) return DesktopInstance.IsRunning() ? 0 : 1;
@@ -37,10 +34,8 @@ internal static class Program
             DesktopConsole.Attach();
             try
             {
-                var mode = GetMode();
-                if (mode == "mcp") _ = LoadMcpOptions();
-                else _ = GetPrefix();
-                Console.WriteLine($"Athena Desktop {mode} configuration is valid. No process or network check performed.");
+                _ = LoadMcpOptions();
+                Console.WriteLine("Athena Desktop MCP configuration is valid. No process or network check performed.");
                 return 0;
             }
             catch (Exception exception) { Console.Error.WriteLine(exception.Message); return 1; }
@@ -60,12 +55,9 @@ internal static class Program
         try
         {
             using var log = new DesktopLog(logPath, console);
-            var mode = GetMode();
-            using var legacyServer = mode == "legacy" ? CreateLegacyServer() : null;
-            var mcp = mode == "mcp" ? LoadMcpOptions() : null;
-            Func<CancellationToken, Task> run = legacyServer is not null ? legacyServer.RunAsync : new WindowsMcpSupervisor(mcp!).RunAsync;
-            var description = mcp is not null ? $"Windows-MCP ({mcp.EndpointUri})" : $"legacy HTTP ({GetPrefix()})";
-            using var runtime = new DesktopRuntime(run, description);
+            var mcp = LoadMcpOptions();
+            using var runtime = new DesktopRuntime(new WindowsMcpSupervisor(mcp).RunAsync,
+                $"Windows-MCP ({mcp.EndpointUri})");
             if (console)
             {
                 ConsoleCancelEventHandler cancel = (_, eventArgs) =>
@@ -80,7 +72,7 @@ internal static class Program
             }
 
             ApplicationConfiguration.Initialize();
-            using var tray = new TrayApplication(runtime, instance, logPath, mode);
+            using var tray = new TrayApplication(runtime, instance, logPath);
             Application.Run(tray);
             return runtime.Completion.GetAwaiter().GetResult();
         }
@@ -93,19 +85,6 @@ internal static class Program
         }
     }
 
-    private static CommandServer CreateLegacyServer()
-    {
-        var dispatcher = new CommandDispatcher();
-        return new CommandServer(new HttpRouter([new HealthEndpoint(), new CommandsEndpoint(dispatcher.DispatchAsync)]), GetPrefix());
-    }
-
-    private static string GetMode()
-    {
-        var mode = Setting("ATHENA_DESKTOP_MODE")?.Trim().ToLowerInvariant() ?? "mcp";
-        if (mode is not ("mcp" or "legacy")) throw new InvalidOperationException("ATHENA_DESKTOP_MODE must be mcp or legacy.");
-        return mode;
-    }
-
     private static WindowsMcpOptions LoadMcpOptions() => WindowsMcpOptions.Load(
         Setting("ATHENA_MCP_SETTINGS") ?? WindowsMcpOptions.DefaultSettingsPath);
 
@@ -116,12 +95,4 @@ internal static class Program
             ? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User) : inherited;
     }
 
-    private static string GetPrefix()
-    {
-        var prefix = Setting("ATHENA_HTTP_PREFIX");
-        if (!string.IsNullOrWhiteSpace(prefix)) return prefix.Trim();
-        var host = Setting("ATHENA_BIND_HOST");
-        return new UriBuilder("http", string.IsNullOrWhiteSpace(host) ? "localhost" : host.Trim(), 5000)
-            .Uri.AbsoluteUri;
-    }
 }

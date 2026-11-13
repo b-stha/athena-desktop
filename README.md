@@ -1,63 +1,40 @@
 # Athena Desktop
 
-Athena Desktop runs in the signed-in Windows session as the **Windows-MCP
-supervisor**. The Pi owns voice processing, deterministic routing, contextual
-reasoning, and MCP client connections. This application owns upstream startup,
-logs, readiness, and shutdown; Windows-MCP exposes the tools directly to the Pi.
+Athena's Windows companion runs in the system tray and manages Windows-MCP.
+The Raspberry Pi interprets commands and connects to MCP; Desktop handles
+startup, logs, and shutdown of the Windows-MCP process.
 
-```text
-Athena on Pi -> authenticated MCP/HTTP -> Windows-MCP -> Windows controls
-                                             ^
-                                  Athena Desktop owns process
-```
+## Setup
 
-Start with [Windows-MCP setup](docs/WINDOWS_MCP.md). Provision its pinned Python
-runtime separately, copy the public examples into private configuration, and
-validate settings before starting the application. Configuration examples in
-`config/` contain no live credentials; startup never downloads software.
+Requires the .NET 10 SDK and a separately installed Windows-MCP runtime. The
+[runtime profile](config/windows-mcp-runtime.json) records the version used by Athena.
+
+Use the [JSON](config/mcp.example.json) and [TOML](config/windows-mcp.example.toml)
+examples to create private `mcp.json` and `windows-mcp.toml` files in
+`%LOCALAPPDATA%\AthenaDesktop\`. Set the executable path, network address, and
+token for your PC. The Pi must use the same MCP address and token.
+
+Validate the settings, then install the tray app and sign-in shortcut:
 
 ```powershell
-dotnet build src/Athena.Desktop.csproj
 dotnet run --project src/Athena.Desktop.csproj -- --check-config
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Install
 ```
 
-`--check-config` checks local paths/settings only. It starts no MCP process and
-makes no network request. After provisioning and configuration, use the install
-or console instructions in the setup guide.
+## Use
 
-## Repository layout
+Keep Windows signed in for desktop interaction. Right-click the tray icon to
+open logs or exit. The management script also supports `Start`, `Stop`, `Status`,
+and `Uninstall` through its `-Action` option.
 
-| Directory | Responsibility |
-| --- | --- |
-| `src/Mcp/` | Default Windows-MCP configuration and owned process lifecycle |
-| `src/Hosting/` | Shared tray, single-instance control, cancellation, and logs |
-| `src/Legacy/` | Explicit legacy HTTP backend, action dispatch, contracts, and Windows actions |
-| `config/` | Public deployment examples and the pinned upstream runtime profile |
-| `scripts/` | Publish/install/start/stop tooling |
-| `tests/` | Fake-backend and loopback regression runner |
-| `docs/` | Current architecture, deployment, and legacy-mode guides |
-| `docs/history/` | Dated rebuild evidence, separate from current instructions |
+## Development
 
-The [module inventory and history assessment](docs/REPOSITORY_LAYOUT.md) explains
-why each source module is retained. Desktop has no training or research source;
-voice development tooling belongs in Athena's separate development project.
-
-## Operation and development
-
-- [Windows-MCP provisioning and configuration](docs/WINDOWS_MCP.md)
-- [Tray, sign-in startup, logging, and installed process management](docs/BACKGROUND.md)
-- [Current desktop architecture](docs/ARCHITECTURE.md)
-- [Legacy HTTP API and rollback mode](docs/LEGACY_HTTP.md)
-- [Regression test scope](tests/README.md)
+`src/` contains the host, `config/` holds public examples, `scripts/` manages
+installation, and `tests/` checks background/MCP behavior. Local `docs/` and
+temporary files under `tmp/` are ignored.
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
 
-The regression runner uses injected actions and benign child fixtures. It does
-not start installed Windows-MCP, launch user applications, change power state,
-or update sign-in settings. The older HTTP backend remains reachable through
-`ATHENA_DESKTOP_MODE=legacy`; it is isolated under `src/Legacy/` rather than
-removed as unused code.
-
-Related repository: [Athena](https://github.com/b-stha/athena).
+Core application: [Athena](https://github.com/b-stha/athena).

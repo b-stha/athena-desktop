@@ -12,11 +12,11 @@ internal sealed class TrayApplication : ApplicationContext
     private readonly IDisposable stopRegistration;
     private bool stopping;
 
-    public TrayApplication(DesktopRuntime runtime, DesktopInstance instance, string logPath, string mode = "mcp")
+    public TrayApplication(DesktopRuntime runtime, DesktopInstance instance, string logPath)
     {
         this.runtime = runtime;
         _ = dispatcher.Handle;
-        menu.Items.Add(mode == "mcp" ? "Managing Windows-MCP" : "Legacy command listener", null, (_, _) => { }).Enabled = false;
+        menu.Items.Add("Managing Windows-MCP", null, (_, _) => { }).Enabled = false;
         menu.Items.Add("Open logs", null, (_, _) => OpenLogs(logPath));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Stop());

@@ -56,7 +56,7 @@ internal static class Program
         {
             using var log = new DesktopLog(logPath, console);
             var mcp = LoadMcpOptions();
-            using var runtime = new DesktopRuntime(new WindowsMcpSupervisor(mcp).RunAsync,
+            using var runtime = new DesktopRuntime(new WindowsMcpSupervisor(mcp).RunContinuouslyAsync,
                 $"Windows-MCP ({mcp.EndpointUri})");
             if (console)
             {

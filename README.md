@@ -2,7 +2,7 @@
 
 Athena's Windows companion runs in the system tray and manages Windows-MCP.
 The Raspberry Pi interprets commands and connects to MCP; Desktop handles
-startup, logs, and shutdown of the Windows-MCP process.
+startup, logs, shutdown, and automatic recovery of the Windows-MCP process.
 
 ## Setup
 

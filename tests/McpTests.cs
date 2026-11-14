@@ -15,6 +15,8 @@ internal static class McpTests
         ("MCP supervisor reports early child failure and forwards output", ChildFailureAsync),
         ("MCP supervisor cleans descendants after their launcher exits", OrphanCleanupAsync),
         ("MCP supervisor reports unexpected exit after readiness", UnexpectedExitAsync),
+        ("MCP recovery replaces a failed child after cleaning its descendants", RecoveryAsync),
+        ("MCP recovery stops during backoff without relaunching", RecoveryCancellationAsync),
         ("MCP supervisor times out and cleans a child that never listens", StartupTimeoutAsync),
         ("MCP supervisor refuses an already occupied port", OccupiedPortAsync),
         ("MCP supervisor propagates missing executable failures", MissingExecutableAsync)
@@ -136,6 +138,89 @@ internal static class McpTests
         var options = WriteOptions(directory.Path, new Fixture(FreePort(), Path.Combine(directory.Path, "state.json"), ExitAfterReady: true));
         var error = await ThrowsAsync<InvalidOperationException>(() => new WindowsMcpSupervisor(options).RunAsync(CancellationToken.None));
         Check(error.Message.Contains("unexpectedly (code 9)"), "A stopped child does not appear healthy or silently restart.");
+    }
+
+    private static async Task RecoveryAsync()
+    {
+        using var directory = new TemporaryDirectory();
+        var fixture = new Fixture(FreePort(), Path.Combine(directory.Path, "state.json"), SpawnLeaf: true, ExitAfterReady: true);
+        var options = WriteOptions(directory.Path, fixture);
+        using var stop = new CancellationTokenSource();
+        var run = new WindowsMcpSupervisor(options).RunContinuouslyAsync(stop.Token, TimeSpan.FromMilliseconds(20));
+        State? first = null;
+        State? second = null;
+        try
+        {
+            first = await ReadStateAsync(fixture.StateFile);
+            second = await ReadNextStateAsync(fixture.StateFile, first.Pid);
+            await AssertExitedAsync(first.Pid);
+            await AssertExitedAsync(first.LeafPid!.Value);
+            Check(!run.IsCompleted, "Recovery keeps the host available after a failed backend.");
+            stop.Cancel();
+            await ThrowsAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            await AssertExitedAsync(second.Pid);
+            await AssertExitedAsync(second.LeafPid!.Value);
+        }
+        finally
+        {
+            stop.Cancel();
+            try { await run; } catch { }
+            foreach (var state in new[] { first, second })
+            {
+                if (state is null) continue;
+                KillFixtureIfAlive(state.Pid);
+                if (state.LeafPid is { } leaf) KillFixtureIfAlive(leaf);
+            }
+        }
+    }
+
+    private static async Task RecoveryCancellationAsync()
+    {
+        using var directory = new TemporaryDirectory();
+        var fixture = new Fixture(FreePort(), Path.Combine(directory.Path, "state.json"), Stall: true, SpawnLeaf: true);
+        var options = WriteOptions(directory.Path, fixture) with { StartupTimeoutSeconds = 1 };
+        using var stop = new CancellationTokenSource();
+        var run = new WindowsMcpSupervisor(options).RunContinuouslyAsync(stop.Token, TimeSpan.FromSeconds(30));
+        State? state = null;
+        try
+        {
+            state = await ReadStateAsync(fixture.StateFile);
+            await AssertExitedAsync(state.Pid);
+            await AssertExitedAsync(state.LeafPid!.Value);
+            Check(!run.IsCompleted, "The recovery host remains alive during backoff.");
+            stop.Cancel();
+            await ThrowsAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(5)));
+            Check((await ReadStateAsync(fixture.StateFile)).Pid == state.Pid, "Stop cancels recovery without starting another child.");
+        }
+        finally
+        {
+            stop.Cancel();
+            try { await run; } catch { }
+            if (state is not null)
+            {
+                KillFixtureIfAlive(state.Pid);
+                if (state.LeafPid is { } leaf) KillFixtureIfAlive(leaf);
+            }
+        }
+    }
+
+    private static async Task<State> ReadNextStateAsync(string path, int previousPid)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var state = JsonSerializer.Deserialize<State>(File.ReadAllText(path));
+                    if (state is not null && state.Pid != previousPid) return state;
+                }
+                catch (IOException) { }
+                catch (JsonException) { }
+            }
+            await Task.Delay(50);
+        }
+        throw new Exception("Recovery never started a replacement child.");
     }
 
     private static async Task OrphanCleanupAsync()

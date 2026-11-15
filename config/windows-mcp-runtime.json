@@ -2,8 +2,12 @@
   "repository": "https://github.com/CursorTouch/Windows-MCP",
   "revision": "c14240d42efc7c8fe9b8dd363ef1342afeaea14e",
   "package_version": "0.8.8",
+  "fastmcp_version": "4.1.5",
   "runtime_directory": "windows-mcp-c14240d4",
   "python_requires": ">=3.14",
   "control_enabled": false,
+  "extension_package": "athena-windows-mcp",
+  "extension_source": "mcp",
+  "entrypoint": "athena-windows-mcp.exe",
   "note": "This source revision supports control opt-out; the PyPI 0.8.8 release does not."
 }

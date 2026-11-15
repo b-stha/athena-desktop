@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=66"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "athena-windows-mcp"
+version = "0.1.0"
+description = "Windows-owned application catalog for Athena's Windows-MCP runtime"
+requires-python = ">=3.14"
+dependencies = ["windows-mcp==0.8.8", "fastmcp==4.1.5"]
+
+[project.scripts]
+athena-windows-mcp = "athena_windows_mcp:main"
+
+[tool.setuptools.packages.find]
+include = ["athena_windows_mcp*"]

@@ -22,6 +22,11 @@ config/mcp.json
 config/windows-mcp.toml
 .mcp-runtime/
 .venv*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
 
 # Local documentation and temporary review artifacts
 /docs/

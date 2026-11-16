@@ -35,11 +35,12 @@ and `Uninstall` through its `-Action` option.
 
 `src/` contains the host, `config/` holds public examples, `scripts/` manages
 installation, `mcp/` adds application catalog/launch tools, and `tests/` checks
-background/MCP behavior. Local `docs/` and
-temporary files under `tmp/` are ignored.
+background/MCP behavior. Local `docs/` and temporary files under `tmp/` are ignored.
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
+
+See [test coverage](tests/README.md) and the [MCP extension checks](mcp/README.md).
 
 Core application: [Athena](https://github.com/b-stha/athena).

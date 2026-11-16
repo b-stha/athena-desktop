@@ -1,4 +1,6 @@
-Run the dependency-free regression checks with:
+# Desktop checks
+
+From the repository root, run the dependency-free C# regression checks with:
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
@@ -25,3 +27,7 @@ For the ten supervisor checks alone:
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj -- --mcp-only
 ```
+
+The Python application catalog and launch-receipt fixtures are a separate suite;
+see the [MCP extension guide](../mcp/README.md). Both suites use fake application
+execution and do not depend on your installed app catalog.

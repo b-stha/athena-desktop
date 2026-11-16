@@ -15,7 +15,7 @@ Windows owns launch identities; the Pi sends no executable paths or arguments.
 
 Use the upstream revision in [the runtime profile](../config/windows-mcp-runtime.json).
 The bootstrap registration hook and FastMCP version are tested against that profile.
-Install into the existing Python 3.14 Windows-MCP environment:
+From this repository's root, install into the existing Python 3.14 Windows-MCP environment:
 
 ```powershell
 & "$env:LOCALAPPDATA\AthenaDesktop\windows-mcp-c14240d4\Scripts\python.exe" -m pip install --no-deps .\mcp

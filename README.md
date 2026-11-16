@@ -1,26 +1,35 @@
 # Athena Desktop
 
-Athena's Windows companion runs in the system tray and manages Windows-MCP.
-The Raspberry Pi interprets commands and connects to MCP; Desktop handles
-startup, logs, shutdown, and automatic recovery of the Windows-MCP process.
-Windows also supplies the Pi with a catalog of registered applications, so
-opening another app does not require adding it to Athena's source code.
-Graceful closing uses the application's normal window-close behavior, including
-save prompts and window selection when several match.
+Athena Desktop is the Windows companion to [Athena](https://github.com/b-stha/athena).
+It runs in the system tray and keeps the Windows control tools available to the
+Raspberry Pi.
+
+The Pi handles commands. Desktop starts the tool server, keeps logs, recovers
+from server failures, and can start when you sign in to Windows.
+
+## What it provides
+
+- Windows tools through Windows-MCP, the server the Pi connects to.
+- A list of registered apps, so new apps do not need to be added to Athena's code.
+- App launching with a clear report of whether Windows accepted the request.
+- Normal window closing, with numbered choices when several windows match.
+
+Closing leaves save prompts for you to answer. Some apps hide in the tray
+instead of exiting. The supplied settings allow normal mouse and keyboard use
+while Athena works.
 
 ## Setup
 
-Requires the .NET 10 SDK and a separately installed Windows-MCP runtime. The
-[runtime profile](config/windows-mcp-runtime.json) records the version used by Athena.
-Install the [Athena MCP extension](mcp/README.md) into that runtime, then use
-its `athena-windows-mcp.exe` executable in the Desktop settings.
+Install the .NET 10 SDK and the Windows-MCP version listed in the
+[runtime settings](config/windows-mcp-runtime.json). Add the
+[Athena app tools](mcp/README.md) to that Python runtime.
 
 Use the [JSON](config/mcp.example.json) and [TOML](config/windows-mcp.example.toml)
 examples to create private `mcp.json` and `windows-mcp.toml` files in
-`%LOCALAPPDATA%\AthenaDesktop\`. Set the executable path, network address, and
-token for your PC. The Pi must use the same MCP address and token.
+`%LOCALAPPDATA%\AthenaDesktop\`. Set the executable, network address, and token.
+The Pi must use the same address and token.
 
-Validate the settings, then install the tray app and sign-in shortcut:
+Check the settings, then install Desktop and its sign-in shortcut:
 
 ```powershell
 dotnet run --project src/Athena.Desktop.csproj -- --check-config
@@ -29,20 +38,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Actio
 
 ## Use
 
-Keep Windows signed in for desktop interaction. Right-click the tray icon to
-open logs or exit. The management script also supports `Start`, `Stop`, `Status`,
-and `Uninstall` through its `-Action` option.
+Keep Windows signed in so Athena can interact with your apps.
+Right-click the tray icon to open logs or exit.
 
-## Development
+The management script also supports `Start`, `Stop`, `Status`, and `Uninstall`:
 
-`src/` contains the host, `config/` holds public examples, `scripts/` manages
-installation, `mcp/` adds application tools, and `tests/` checks
-background/MCP behavior. Local `docs/` and temporary files under `tmp/` are ignored.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Status
+```
+
+For app commands and current limitations, see the
+[main Athena guide](https://github.com/b-stha/athena).
+
+## Working on Desktop
+
+`src/` contains the tray app, `config/` contains public setup examples,
+`scripts/` manages installation, and `mcp/` adds Athena's app tools.
+`tests/` contains checks. Local `docs/` and temporary `tmp/` files are ignored.
+
+Run the host checks with:
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
 
-See [test coverage](tests/README.md) and the [MCP extension checks](mcp/README.md).
-
-Core application: [Athena](https://github.com/b-stha/athena).
+See the [test guide](tests/README.md) and [app tools guide](mcp/README.md)
+for what the checks cover.

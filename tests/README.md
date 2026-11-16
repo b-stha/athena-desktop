@@ -1,33 +1,30 @@
 # Desktop checks
 
-From the repository root, run the dependency-free C# regression checks with:
+Run these from the Desktop repository root:
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
 
-The runner covers the shared background host and Windows-MCP supervisor: three
-background checks and ten MCP checks. It never performs real power actions,
-launches user applications, or starts the installed Windows-MCP runtime.
+The 13 C# checks cover the background app and its Windows-MCP process:
 
-Background checks cover instance ownership across threads, duplicate prevention,
-graceful stop and restart, runtime cancellation and startup failures, and bounded
-file logging. They use unique named handles and temporary log files; they do not
-install a login shortcut or change saved user settings.
+- Preventing duplicate instances and stopping cleanly.
+- Handling startup failures, cancellation, and bounded log files.
+- Checking settings and waiting for the server to become ready.
+- Detecting failures and cleaning up only the processes Desktop started.
+- Recovering the tool server after a failure.
 
-MCP supervisor checks run the test executable itself as a benign fake upstream
-process, binding temporary loopback ports and spawning an inert descendant. They
-verify local configuration validation, literal process argument boundaries,
-readiness, timeout, child exit/failure output, occupied-port rejection, and owned
-process-tree cleanup, backend recovery, and cancellation during recovery. The
-fake's config contents are JSON fixture data, not an upstream TOML example.
+They use temporary files and test processes. They do not start your installed
+Windows-MCP server, change sign-in settings, control user apps, or run power
+commands.
 
-For the ten supervisor checks alone:
+To run just the ten server-management checks:
 
 ```powershell
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj -- --mcp-only
 ```
 
-The Python application catalog and launch-receipt fixtures are a separate suite;
-see the [MCP extension guide](../mcp/README.md). Both suites use fake application
-execution and do not depend on your installed app catalog.
+The Python checks for the app list, launch results, graceful closing, window
+choices, and repeated requests are separate. See the
+[app tools guide](../mcp/README.md) for their command. Those checks also use
+fake app and window data.

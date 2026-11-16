@@ -1,60 +1,74 @@
-# Athena Windows-MCP extension
+# Athena's Windows app tools
 
-Adds application tools to the existing Windows-MCP server:
+This small extension adds app discovery, launching, and closing to the existing
+Windows-MCP server. It uses the same network address, token, and background
+process as the other Windows tools.
 
-- `AthenaAppCatalog`: discovers Start-menu applications and returns stable IDs.
-  A name query keeps model responses small; the Pi caches the full catalog.
-- `AthenaLaunchApp`: resolves an ID on Windows and returns a launch receipt.
-  Replaying a retained request ID returns the receipt without launching again.
-- `AthenaAppWindows`: lists matching windows and short-lived selection IDs.
-- `AthenaCloseApp`: requests normal window closing and verifies the result.
-  Several matches require a user choice; pending results are never retried.
+## Available tools
 
-The extension uses the same endpoint, authentication, allowlist and process
-supervision as upstream. The C# tray host stays responsible for lifecycle.
-Windows owns launch identities; the Pi sends no executable paths or arguments.
+| Tool | What it does |
+| --- | --- |
+| `AthenaAppCatalog` | Lists registered apps and their IDs; can search by name. |
+| `AthenaLaunchApp` | Asks Windows to open a selected app. |
+| `AthenaAppWindows` | Lists the app's windows without changing them. |
+| `AthenaCloseApp` | Requests normal closing and checks what happened. |
 
-## Install
+Windows supplies the app list. The Pi selects an app by ID, without sending
+executable paths or command arguments.
 
-Use the upstream revision in [the runtime profile](../config/windows-mcp-runtime.json).
-The bootstrap registration hook and FastMCP version are tested against that profile.
-From this repository's root, install into the existing Python 3.14 Windows-MCP environment:
+## Install or update
+
+Use the Windows-MCP version in the [runtime settings](../config/windows-mcp-runtime.json).
+From the Desktop repository root, stop Desktop before changing its active
+extension:
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Stop
 & "$env:LOCALAPPDATA\AthenaDesktop\windows-mcp-c14240d4\Scripts\python.exe" -m pip install --no-deps .\mcp
 ```
 
-Set `Executable` in Desktop's private `mcp.json` to the resulting
-`Scripts\athena-windows-mcp.exe`, then restart Desktop. The CLI arguments and
-private TOML settings stay the same. No upstream package files are patched.
-Stop Desktop before updating the extension; Windows locks its active launcher.
+Set `Executable` in the private `mcp.json` to the runtime's
+`Scripts\athena-windows-mcp.exe`, then start Desktop:
 
-## Limits and checks
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desktop.ps1 -Action Start
+```
 
-Only applications registered in Windows' AppsFolder appear automatically.
-Portable apps without a registration need a future override. Duplicate spoken
-names require clarification. Launch acceptance does not confirm a ready window;
-Windows may reuse an existing instance or hand the request to a launcher.
-Closing uses a window app ID or a unique exact registered executable match.
-Shortcuts with arguments do not claim windows by their executable alone.
-Unresolved launcher/hosted-app identities are declined. Window titles identify
-choices for the user; they are never used to guess an application.
+The existing network and token settings stay the same.
 
-Close requests never terminate processes or answer save dialogs. A destroyed
-window is reported as closed; a hidden window may leave the app running in the
-tray. A window that remains open is reported as pending. Selection IDs expire
-after 60 seconds, and process/window identity and title are rechecked before use.
-The core offers numbered choices and expires its selection after 50 seconds;
-the model cannot supply explicit window selections through its tool registry.
+## What the results mean
 
-Both catalog caches expire after 60 seconds. Launch checks the current catalog
-revision and declines a stale selection. Receipts are retained in memory for
-256 launch/close requests; this is not a guarantee across server restarts.
+An accepted launch means Windows received the request. It does not confirm
+that a window is ready.
 
-Tests use fake discovery, launches and window lifecycles:
+Closing affects one identified window. It never kills a process or answers
+a save prompt. Results distinguish a closed window, an app hidden in the tray,
+and a window that remains open.
+
+If several windows match, Athena asks you to choose. Reply `close window one`
+or another listed number within 50 seconds. Changed or expired choices require
+a new close command.
+
+Recent request IDs and results are kept in memory so a replay does not repeat
+the action. Restarting the server clears that history.
+
+## Limits
+
+Apps must appear in Windows' registered app list. Portable apps may need a
+future override. Closing also needs a reliable match between an app and its
+window; some launchers and shared app hosts cannot be matched yet.
+Shortcuts that open a document or use extra arguments cannot claim windows
+by their executable alone.
+
+Unknown app nicknames may still use cloud reasoning. Automatic nickname
+learning is planned on the Pi.
+
+## Checks
+
+Run the Python checks from the Desktop repository root:
 
 ```powershell
 & "$env:LOCALAPPDATA\AthenaDesktop\windows-mcp-c14240d4\Scripts\python.exe" -m unittest discover -s mcp/tests -v
 ```
 
-Discovery follows Microsoft's [AppsFolder/AUMID example](https://learn.microsoft.com/en-us/windows/configuration/store/find-aumid).
+They use fake apps and windows and do not control your open applications.

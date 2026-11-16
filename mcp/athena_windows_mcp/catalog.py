@@ -56,17 +56,26 @@ class WindowsApps:
                 raise LaunchNotSent("Windows application catalog exceeds its supported limit.")
             rows = []
             for item in items:
-                try:
-                    executable = item.ExtendedProperty("System.Link.TargetParsingPath")
-                except Exception:
-                    executable = ''
-                rows.append(RegisteredApp(str(item.Path), str(item.Name),
-                                          executable if isinstance(executable, str) else ''))
+                rows.append(self._registration(item))
             return rows
         finally:
             # Release COM references before uninitializing this worker thread.
             folder = items = None
             pythoncom.CoUninitialize()
+
+    @staticmethod
+    def _registration(item):
+        try:
+            executable = item.ExtendedProperty("System.Link.TargetParsingPath")
+            arguments = item.ExtendedProperty("System.Link.Arguments")
+            # A document/profile shortcut can share an executable with its host
+            # app. It cannot own arbitrary windows of that executable.
+            if arguments is not None and (not isinstance(arguments, str) or arguments.strip()):
+                executable = ''
+        except Exception:
+            executable = ''
+        return RegisteredApp(str(item.Path), str(item.Name),
+                             executable if isinstance(executable, str) else '')
 
     def launch(self, identity):
         import pythoncom

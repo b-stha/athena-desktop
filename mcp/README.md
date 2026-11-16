@@ -36,6 +36,7 @@ Portable apps without a registration need a future override. Duplicate spoken
 names require clarification. Launch acceptance does not confirm a ready window;
 Windows may reuse an existing instance or hand the request to a launcher.
 Closing uses a window app ID or a unique exact registered executable match.
+Shortcuts with arguments do not claim windows by their executable alone.
 Unresolved launcher/hosted-app identities are declined. Window titles identify
 choices for the user; they are never used to guess an application.
 

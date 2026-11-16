@@ -1,7 +1,7 @@
 from dataclasses import replace
 import unittest
 
-from athena_windows_mcp.catalog import ApplicationCatalog, RegisteredApp
+from athena_windows_mcp.catalog import ApplicationCatalog, RegisteredApp, WindowsApps
 from athena_windows_mcp.closing import GracefulClose
 from athena_windows_mcp.windows import CloseNotSent, Window, belongs
 from test_catalog import FakeWindows
@@ -159,6 +159,33 @@ class ClosingTests(unittest.TestCase):
         self.assertFalse(belongs(window, app, [app, other]))
         self.assertFalse(belongs(replace(window, app_id='other.app'), app, [app]))
         self.assertFalse(belongs(replace(window, image=r'C:\elsewhere\notepad.exe'), app, [app]))
+
+    def test_document_shortcut_does_not_own_its_host_app_windows(self):
+        class Item:
+            Path, Name = 'notepad.app', 'Notepad'
+            def ExtendedProperty(self, key):
+                return {'System.Link.TargetParsingPath': r'C:\notepad.exe',
+                        'System.Link.Arguments': None}[key]
+        class Document(Item):
+            Path, Name = 'license.shortcut', 'License document'
+            def ExtendedProperty(self, key):
+                if key == 'System.Link.Arguments':
+                    return r'C:\licenses\license.txt'
+                return super().ExtendedProperty(key)
+        app, document = WindowsApps._registration(Item()), WindowsApps._registration(Document())
+        window = replace(self.desktop.rows[0], app_id='')
+        self.assertTrue(belongs(window, app, [app, document]))
+        self.assertFalse(belongs(window, document, [app, document]))
+        self.assertEqual(document.public()['id'], RegisteredApp('license.shortcut', 'License document').id)
+
+    def test_unreadable_shortcut_arguments_disable_executable_matching(self):
+        class Item:
+            Path, Name = 'unknown.app', 'Unknown'
+            def ExtendedProperty(self, key):
+                if key == 'System.Link.Arguments':
+                    raise RuntimeError('Unavailable')
+                return r'C:\notepad.exe'
+        self.assertEqual(WindowsApps._registration(Item()).executable, '')
 
 
 if __name__ == '__main__':

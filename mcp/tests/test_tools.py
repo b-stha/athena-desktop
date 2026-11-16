@@ -5,16 +5,36 @@ from fastmcp import Client, FastMCP
 from athena_windows_mcp.catalog import ApplicationCatalog
 from athena_windows_mcp.tools import register
 from test_catalog import FakeWindows
+from test_closing import Desktop
+from athena_windows_mcp.closing import GracefulClose
 
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pending_close_is_a_protocol_error_and_not_retried(self):
+        windows, desktop = FakeWindows(), Desktop()
+        desktop.behavior = 'keep'
+        catalog = ApplicationCatalog(windows)
+        server = FastMCP('close-tool-test')
+        register(server, catalog=catalog, closer=GracefulClose(catalog, desktop, wait=0))
+        async with Client(server) as client:
+            document = (await client.call_tool('AthenaAppCatalog', {})).data
+            app = next(row for row in document['applications'] if row['display_name'] == 'Notepad')
+            request = {'application_id': app['id'], 'revision': document['revision'], 'request_id': 'pending'}
+            first = await client.call_tool_mcp('AthenaCloseApp', request)
+            replay = await client.call_tool_mcp('AthenaCloseApp', request)
+            self.assertTrue(first.is_error)
+            self.assertEqual(first.structured_content['status'], 'pending')
+            self.assertEqual(first.structured_content, replay.structured_content)
+            self.assertEqual(len(desktop.sent), 1)
+
     async def test_catalog_and_launch_schemas_and_receipts(self):
         windows = FakeWindows()
         server = FastMCP("catalog-test")
         register(server, catalog=ApplicationCatalog(windows))
         async with Client(server) as client:
             tools = {tool.name: tool for tool in await client.list_tools()}
-            self.assertEqual(set(tools), {"AthenaAppCatalog", "AthenaLaunchApp"})
+            self.assertEqual(set(tools), {"AthenaAppCatalog", "AthenaLaunchApp",
+                                         "AthenaAppWindows", "AthenaCloseApp"})
             self.assertTrue(tools["AthenaAppCatalog"].annotations.read_only_hint)
             self.assertEqual(set(tools["AthenaLaunchApp"].input_schema["required"]),
                              {"application_id", "revision", "request_id"})

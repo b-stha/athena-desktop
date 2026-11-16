@@ -1,4 +1,4 @@
-"""Discover and launch registered Windows apps without accepting command strings."""
+"""Discover registered apps and retain launch/close receipts without command strings."""
 
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -23,6 +23,7 @@ class LaunchNotSent(RuntimeError):
 class RegisteredApp:
     identity: str
     display_name: str
+    executable: str = ''
 
     @property
     def id(self):
@@ -30,7 +31,7 @@ class RegisteredApp:
 
     def public(self):
         return {"id": self.id, "display_name": self.display_name,
-                "aliases": [], "operations": ["launch"]}
+                "aliases": [], "operations": ["launch", "close"]}
 
 
 class WindowsApps:
@@ -53,7 +54,15 @@ class WindowsApps:
             items = folder.Items()
             if items.Count > MAX_APPLICATIONS:
                 raise LaunchNotSent("Windows application catalog exceeds its supported limit.")
-            return [RegisteredApp(str(item.Path), str(item.Name)) for item in items]
+            rows = []
+            for item in items:
+                try:
+                    executable = item.ExtendedProperty("System.Link.TargetParsingPath")
+                except Exception:
+                    executable = ''
+                rows.append(RegisteredApp(str(item.Path), str(item.Name),
+                                          executable if isinstance(executable, str) else ''))
+            return rows
         finally:
             # Release COM references before uninitializing this worker thread.
             folder = items = None
@@ -97,13 +106,14 @@ class ApplicationCatalog:
             if (not isinstance(row, RegisteredApp) or not row.identity
                     or len(row.identity) > 2048 or not row.display_name.strip()
                     or len(row.display_name) > 160
+                    or not isinstance(row.executable, str) or len(row.executable) > 32768
                     or any(ord(char) < 32 for char in row.identity + row.display_name)):
                 raise LaunchNotSent("Windows returned an invalid application registration.")
             previous = apps.get(row.id)
             if previous is not None and previous != row:
                 raise LaunchNotSent("Windows returned conflicting application registrations.")
             apps[row.id] = row
-        public = [apps[key].public() for key in sorted(apps)]
+        public = [{**apps[key].public(), "binding": apps[key].executable.casefold()} for key in sorted(apps)]
         revision = hashlib.sha256(json.dumps(public, sort_keys=True, separators=(",", ":"),
                                                ensure_ascii=False).encode("utf-8")).hexdigest()
         self.apps, self.revision, self.refreshed = apps, revision, self.clock()
@@ -120,7 +130,7 @@ class ApplicationCatalog:
                 or not isinstance(request_id, str) or not REQUEST_ID.fullmatch(request_id)):
             raise ValueError("Use a catalog application ID, revision, and request ID.")
         with self.lock:
-            fingerprint = (application_id, revision)
+            fingerprint = ("launch", application_id, revision)
             previous = self.ledger.get(request_id)
             if previous is not None:
                 if previous[0] == fingerprint:

@@ -44,7 +44,7 @@ class CatalogTests(unittest.TestCase):
     def test_public_catalog_has_no_launch_identity_or_executable(self):
         row = self.catalog.catalog()["applications"][0]
         self.assertEqual(set(row), {"id", "display_name", "aliases", "operations"})
-        self.assertEqual(row["operations"], ["launch"])
+        self.assertEqual(row["operations"], ["launch", "close"])
 
     def test_cache_refresh_expiry_and_explicit_refresh(self):
         self.catalog.catalog()

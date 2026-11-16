@@ -5,6 +5,8 @@ The Raspberry Pi interprets commands and connects to MCP; Desktop handles
 startup, logs, shutdown, and automatic recovery of the Windows-MCP process.
 Windows also supplies the Pi with a catalog of registered applications, so
 opening another app does not require adding it to Athena's source code.
+Graceful closing uses the application's normal window-close behavior, including
+save prompts and window selection when several match.
 
 ## Setup
 
@@ -34,7 +36,7 @@ and `Uninstall` through its `-Action` option.
 ## Development
 
 `src/` contains the host, `config/` holds public examples, `scripts/` manages
-installation, `mcp/` adds application catalog/launch tools, and `tests/` checks
+installation, `mcp/` adds application tools, and `tests/` checks
 background/MCP behavior. Local `docs/` and temporary files under `tmp/` are ignored.
 
 ```powershell

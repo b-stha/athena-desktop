@@ -13,6 +13,7 @@ from server failures, and can start when you sign in to Windows.
 - A list of registered apps, so new apps do not need to be added to Athena's code.
 - App launching with a clear report of whether Windows accepted the request.
 - Normal window closing, with numbered choices when several windows match.
+- PC shutdown, restart, and sleep using the existing Windows power behavior.
 
 Closing leaves save prompts for you to answer. Some apps hide in the tray
 instead of exiting. The supplied settings allow normal mouse and keyboard use
@@ -22,7 +23,7 @@ while Athena works.
 
 Install the .NET 10 SDK and the Windows-MCP version listed in the
 [runtime settings](config/windows-mcp-runtime.json). Add the
-[Athena app tools](mcp/README.md) to that Python runtime.
+[Athena app and power tools](mcp/README.md) to that Python runtime.
 
 Use the [JSON](config/mcp.example.json) and [TOML](config/windows-mcp.example.toml)
 examples to create private `mcp.json` and `windows-mcp.toml` files in
@@ -53,7 +54,7 @@ For app commands and current limitations, see the
 ## Working on Desktop
 
 `src/` contains the tray app, `config/` contains public setup examples,
-`scripts/` manages installation, and `mcp/` adds Athena's app tools.
+`scripts/` manages installation, and `mcp/` adds Athena's app and power tools.
 `tests/` contains checks. Local `docs/` and temporary `tmp/` files are ignored.
 
 Run the host checks with:
@@ -62,5 +63,5 @@ Run the host checks with:
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj
 ```
 
-See the [test guide](tests/README.md) and [app tools guide](mcp/README.md)
+See the [test guide](tests/README.md) and [Windows tools guide](mcp/README.md)
 for what the checks cover.

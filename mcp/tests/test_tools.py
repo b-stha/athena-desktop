@@ -34,7 +34,8 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         async with Client(server) as client:
             tools = {tool.name: tool for tool in await client.list_tools()}
             self.assertEqual(set(tools), {"AthenaAppCatalog", "AthenaLaunchApp",
-                                         "AthenaAppWindows", "AthenaCloseApp"})
+                                         "AthenaAppWindows", "AthenaCloseApp",
+                                         "AthenaPowerStatus", "AthenaPowerAction"})
             self.assertTrue(tools["AthenaAppCatalog"].annotations.read_only_hint)
             self.assertEqual(set(tools["AthenaLaunchApp"].input_schema["required"]),
                              {"application_id", "revision", "request_id"})

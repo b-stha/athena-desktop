@@ -1,15 +1,41 @@
 """Tools share Windows-MCP's existing auth, allowlist, lifecycle and control gate."""
 
 import asyncio
+from typing import Literal
 from fastmcp.tools import ToolResult
 
 from .catalog import ApplicationCatalog
 from .closing import GracefulClose
+from .power import PowerService
 
 
-def register(mcp, *, catalog=None, closer=None):
+def register(mcp, *, catalog=None, closer=None, power=None):
     catalog = ApplicationCatalog() if catalog is None else catalog
     closer = GracefulClose(catalog) if closer is None else closer
+    power = PowerService(catalog) if power is None else power
+
+    @mcp.tool(name="AthenaPowerStatus",
+              description="Read available PC power operations or a retained power-request receipt. "
+                          "Never changes power state. Submitted means Windows received a request; "
+                          "actual shutdown, restart or sleep is not confirmed.",
+              annotations={"readOnlyHint": True, "destructiveHint": False,
+                           "idempotentHint": True, "openWorldHint": False})
+    async def power_status(request_id: str | None = None) -> dict:
+        return await asyncio.to_thread(power.status, request_id)
+
+    @mcp.tool(name="AthenaPowerAction",
+              description="Request PC shutdown, restart or sleep with a unique request ID. "
+                          "Replays never perform another action. Execution is deferred briefly to "
+                          "allow the receipt to return. Shutdown/restart do not force-close apps; "
+                          "sleep keeps wake events enabled. A receipt is not power-state confirmation. "
+                          "Never retry an uncertain result or substitute a shell command.",
+              annotations={"readOnlyHint": False, "destructiveHint": True,
+                           "idempotentHint": False, "openWorldHint": False})
+    async def power_action(action: Literal["shutdown", "restart", "sleep"],
+                           request_id: str) -> ToolResult:
+        receipt = await asyncio.to_thread(power.execute, action, request_id)
+        return ToolResult(structured_content=receipt,
+                          is_error=receipt["status"] not in {"scheduled", "submitted"})
 
     @mcp.tool(name="AthenaAppCatalog",
               description="List registered Windows applications and stable IDs. Read-only; "

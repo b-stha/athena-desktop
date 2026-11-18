@@ -1,6 +1,6 @@
-# Athena's Windows app tools
+# Athena's Windows app and power tools
 
-This small extension adds app discovery, launching, and closing to the existing
+This small extension adds app discovery, launching, closing, and PC power to the existing
 Windows-MCP server. It uses the same network address, token, and background
 process as the other Windows tools.
 
@@ -12,6 +12,8 @@ process as the other Windows tools.
 | `AthenaLaunchApp` | Asks Windows to open a selected app. |
 | `AthenaAppWindows` | Lists the app's windows without changing them. |
 | `AthenaCloseApp` | Requests normal closing and checks what happened. |
+| `AthenaPowerStatus` | Reads available power actions or a recent request's result. |
+| `AthenaPowerAction` | Requests shutdown, restart, or sleep. |
 
 Windows supplies the app list. The Pi selects an app by ID, without sending
 executable paths or command arguments.
@@ -52,6 +54,12 @@ a new close command.
 Recent request IDs and results are kept in memory so a replay does not repeat
 the action. Restarting the server clears that history.
 
+Power requests wait two seconds before Windows acts so the receipt can return
+first. A scheduled or submitted result does not confirm that the PC is off or
+asleep. Shutdown and restart do not force apps closed; unsaved work may block
+them. Sleep leaves wake events enabled. Uncertain results are never retried
+automatically. Only one power request can be pending at a time.
+
 ## Limits
 
 Apps must appear in Windows' registered app list. Portable apps may need a
@@ -71,4 +79,5 @@ Run the Python checks from the Desktop repository root:
 & "$env:LOCALAPPDATA\AthenaDesktop\windows-mcp-c14240d4\Scripts\python.exe" -m unittest discover -s mcp/tests -v
 ```
 
-They use fake apps and windows and do not control your open applications.
+They use fake apps, windows, and power actions. They do not change your PC's
+power state or control your open applications.

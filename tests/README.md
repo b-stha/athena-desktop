@@ -24,7 +24,6 @@ To run just the ten server-management checks:
 dotnet run --project tests/Athena.Desktop.RegressionTests.csproj -- --mcp-only
 ```
 
-The Python checks for the app list, launch results, graceful closing, window
-choices, and repeated requests are separate. See the
-[app tools guide](../mcp/README.md) for their command. Those checks also use
-fake app and window data.
+The Python checks for apps, window closing, power requests, and repeated requests
+are separate. See the [Windows tools guide](../mcp/README.md) for their command.
+Those checks use fake app, window, and power actions.
